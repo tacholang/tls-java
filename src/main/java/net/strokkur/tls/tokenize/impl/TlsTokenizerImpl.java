@@ -16,22 +16,21 @@ public class TlsTokenizerImpl implements TlsTokenizer {
   public List<TlsToken> tokenize(Reader reader) {
     try {
       final TokenizeContext context = new TokenizeContext(reader);
-      final List<TlsToken> out = new ArrayList<>();
 
       while (context.hasNext()) {
         advanceWhitespace(context);
-        out.add(nextToken(context));
+        nextToken(context);
       }
 
-      out.add(new TlsToken("", context.lineIndex, context.lineOffset, TlsTokenType.EOF));
-      return Collections.unmodifiableList(out);
+      context.tokenAndAdvance("", TlsTokenType.EOF);
+      return Collections.unmodifiableList(context.tokens);
     } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
   }
 
-  private TlsToken nextToken(TokenizeContext ctx) throws IOException {
-    return switch (ctx.current) {
+  private void nextToken(TokenizeContext ctx) throws IOException {
+    switch (ctx.current) {
       case '=' -> ctx.tokenAndAdvance("=", TlsTokenType.EQUALS);
       case '\n' -> ctx.tokenAndAdvance("\n", TlsTokenType.NEWLINE);
       case '{' -> ctx.tokenAndAdvance("{", TlsTokenType.CURLY_BRACE_OPEN);
@@ -53,7 +52,7 @@ public class TlsTokenizerImpl implements TlsTokenizer {
           ctx.advance(); // --> curr = <after-string>
         }
 
-        yield ctx.stopRecorderIntoToken(TlsTokenType.STRING);
+        ctx.stopRecorderIntoToken(TlsTokenType.STRING);
       }
 
       default -> {
@@ -68,7 +67,8 @@ public class TlsTokenizerImpl implements TlsTokenizer {
           while (isNumber(ctx.current)) {
             ctx.advance();
           }
-          yield ctx.stopRecorderIntoToken(TlsTokenType.STRING);
+          ctx.stopRecorderIntoToken(TlsTokenType.STRING);
+          return;
         }
 
         // It must be something identifier-like!
@@ -77,7 +77,8 @@ public class TlsTokenizerImpl implements TlsTokenizer {
           do {
             ctx.advance();
           } while (isIdentifierBody(ctx.current));
-          yield ctx.stopRecorderIntoToken(TlsTokenType.IDENTIFIER);
+          ctx.stopRecorderIntoToken(TlsTokenType.IDENTIFIER);
+          return;
         }
 
         // No idea what it is. Let's collect characters until we hit whitespace.
@@ -85,14 +86,19 @@ public class TlsTokenizerImpl implements TlsTokenizer {
         while (!isWhitespace(ctx.current)) {
           ctx.advance();
         }
-        yield ctx.stopRecorderIntoToken(TlsTokenType.UNRECOGNIZED);
+        ctx.stopRecorderIntoToken(TlsTokenType.UNRECOGNIZED);
+        return;
       }
     };
   }
 
   private void advanceWhitespace(TokenizeContext ctx) throws IOException {
     while (isWhitespace(ctx.current)) {
-      ctx.advance();
+      if (isNewline(ctx.current)) {
+        ctx.tokenAndAdvance("\n", TlsTokenType.NEWLINE);
+      } else {
+        ctx.advance();
+      }
     }
     advanceComments(ctx);
   }
@@ -103,7 +109,7 @@ public class TlsTokenizerImpl implements TlsTokenizer {
       do {
         ctx.advance();
       } while (ctx.current != '\n');
-      ctx.advance();
+      ctx.tokenAndAdvance("\n", TlsTokenType.NEWLINE);
       advanceWhitespace(ctx);
       return;
     }
@@ -131,12 +137,18 @@ public class TlsTokenizerImpl implements TlsTokenizer {
     return codepoint == ' ' || codepoint == '\t' || codepoint == '\n' || codepoint == '\r';
   }
 
+  private static boolean isNewline(int codepoint) {
+    return codepoint == '\n';
+  }
+
   private static boolean isIdentifierBody(int codepoint) {
     return isAlpha(codepoint) || isNumber(codepoint) || codepoint == '_' || codepoint == '-' || codepoint == '$' || codepoint == '.';
   }
 
   private static final class TokenizeContext {
     final Reader reader;
+    final List<TlsToken> tokens = new ArrayList<>();
+
     int previous;
     int current;
     int next;
@@ -180,14 +192,13 @@ public class TlsTokenizerImpl implements TlsTokenizer {
       return out;
     }
 
-    TlsToken stopRecorderIntoToken(TlsTokenType tokenType) {
-      return new TlsToken(stopRecorder(), lineIndex, lineOffset, tokenType);
+    void stopRecorderIntoToken(TlsTokenType tokenType) {
+      tokens.add(new TlsToken(stopRecorder(), lineIndex, lineOffset, tokenType));
     }
 
-    TlsToken tokenAndAdvance(String c, TlsTokenType tokenType) throws IOException {
-      final TlsToken token = new TlsToken(c, lineIndex, lineOffset, tokenType);
+    void tokenAndAdvance(String c, TlsTokenType tokenType) throws IOException {
+      tokens.add(new TlsToken(c, lineIndex, lineOffset, tokenType));
       advance();
-      return token;
     }
 
     boolean hasPrevious() {

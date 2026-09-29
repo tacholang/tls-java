@@ -31,18 +31,32 @@ class TestTokenizer {
     final TokenChecker checker = new TokenChecker(tokens);
     checker.expectIdentifier("build");
     checker.expect("{", TlsTokenType.CURLY_BRACE_OPEN);
+    checker.expectNewline();
+
     checker.expectIdentifier("name");
     checker.expectString("${project_name}-${architecture}");
+    checker.expectNewline();
+
     checker.expectIdentifier("version");
     checker.expectString("${project_version}+${git_ref_short}");
+    checker.expectNewline();
+
     checker.expect("}", TlsTokenType.CURLY_BRACE_CLOSE);
+    checker.expectNewlines(3);
+
     checker.expectIdentifier("build");
     checker.expectIdentifier("x86");
     checker.expect("{", TlsTokenType.CURLY_BRACE_OPEN);
+    checker.expectNewline();
+
     checker.expectIdentifier("name");
     checker.expectIdentifier("project_name");
+    checker.expectNewline();
+
     checker.expectIdentifier("version");
     checker.expectString("${project_version}+${git_ref_short}");
+    checker.expectNewline();
+
     checker.expect("}", TlsTokenType.CURLY_BRACE_CLOSE);
     checker.expectEof();
   }
@@ -73,6 +87,16 @@ class TestTokenizer {
 
     public void expectString(String content) {
       expect('"' + content + '"', TlsTokenType.STRING);
+    }
+
+    public void expectNewline() {
+      expect("\n", TlsTokenType.NEWLINE);
+    }
+
+    public void expectNewlines(int count) {
+      for (int i = 0; i < count; i++) {
+        expectNewline();
+      }
     }
 
     public void expectEof() {
