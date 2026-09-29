@@ -9,4 +9,4 @@ build
 
 # Ignore IntelliJ files
 .idea
-**.iml
+*.iml
