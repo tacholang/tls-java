@@ -23,6 +23,7 @@ public class TlsTokenizerImpl implements TlsTokenizer {
         out.add(nextToken(context));
       }
 
+      out.add(new TlsToken("", context.lineIndex, context.lineOffset, TlsTokenType.EOF));
       return Collections.unmodifiableList(out);
     } catch (IOException ex) {
       throw new RuntimeException(ex);
@@ -31,11 +32,11 @@ public class TlsTokenizerImpl implements TlsTokenizer {
 
   private TlsToken nextToken(TokenizeContext ctx) throws IOException {
     return switch (ctx.current) {
-      case '=' -> new TlsToken("=", ctx.lineIndex, ctx.lineOffset, TlsTokenType.EQUALS);
-      case '\n' -> new TlsToken("\n", ctx.lineIndex, ctx.lineOffset, TlsTokenType.NEWLINE);
-      case '{' -> new TlsToken("{", ctx.lineIndex, ctx.lineOffset, TlsTokenType.CURLY_BRACE_OPEN);
-      case '}' -> new TlsToken("}", ctx.lineIndex, ctx.lineOffset, TlsTokenType.CURLY_BRACE_CLOSE);
-      case -1 -> new TlsToken("", ctx.lineIndex, ctx.lineOffset, TlsTokenType.EOF);
+      case '=' -> ctx.tokenAndAdvance("=", TlsTokenType.EQUALS);
+      case '\n' -> ctx.tokenAndAdvance("\n", TlsTokenType.NEWLINE);
+      case '{' -> ctx.tokenAndAdvance("{", TlsTokenType.CURLY_BRACE_OPEN);
+      case '}' -> ctx.tokenAndAdvance("}", TlsTokenType.CURLY_BRACE_CLOSE);
+      case -1 -> ctx.tokenAndAdvance("", TlsTokenType.EOF);
 
       case '"' -> {
         // This is the start of a string.
@@ -181,6 +182,12 @@ public class TlsTokenizerImpl implements TlsTokenizer {
 
     TlsToken stopRecorderIntoToken(TlsTokenType tokenType) {
       return new TlsToken(stopRecorder(), lineIndex, lineOffset, tokenType);
+    }
+
+    TlsToken tokenAndAdvance(String c, TlsTokenType tokenType) throws IOException {
+      final TlsToken token = new TlsToken(c, lineIndex, lineOffset, tokenType);
+      advance();
+      return token;
     }
 
     boolean hasPrevious() {
